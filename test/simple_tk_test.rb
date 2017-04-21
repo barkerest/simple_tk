@@ -13,7 +13,7 @@ class SimpleTkTest < Minitest::Test
     assert sample_file, "Missing file for #{name} sample."
 
     system("ruby -Ilib \"#{sample_file}\"")
-    assert_equal 1, $?.exitstatus, "Sample #{name} did not return 1."
+    assert_equal 0, $?.exitstatus, "Sample #{name} did not return 0."
   end
 
   def test_alert
@@ -26,8 +26,11 @@ class SimpleTkTest < Minitest::Test
   end
 
   def test_hello_world
-    puts 'Awaiting user interaction, please click the button on the sample window.'
     run_sample 'hello_world'
+  end
+
+  def test_basic_entry
+    run_sample 'basic_entry'
   end
 
 end

@@ -37,7 +37,8 @@ module SimpleTk
     #     This defaults to "nsew" and most likely you don't want to change it, but the
     #     option is available.
     #
-    def initialize(options = {})
+    # If you provide a block it will be executed in the scope of the window.
+    def initialize(options = {}, &block)
       @object = {}
       @var = {}
 
@@ -66,10 +67,10 @@ module SimpleTk
         root.title title
         TkGrid.columnconfigure root, 0, weight: 1
         TkGrid.rowconfigure root, 0, weight: 1
+        apply_options root, win_opt
       end
 
       @object[:stk___content] = Tk::Tile::Frame.new(root)
-      apply_options root, win_opt unless is_frame
       apply_options content, options
 
       @config = {
@@ -78,9 +79,13 @@ module SimpleTk
           col_start: -1,
           col_count: -1,
           cur_col: -1,
-          cur_row: -1
+          cur_row: -1,
+          base_opt: { }
       }
 
+      if block_given?
+        instance_eval &block
+      end
     end
 
     ##
@@ -320,10 +325,13 @@ module SimpleTk
     #
     # A frame can be used as a sub-window.  The returned object has all of the same methods as a Window
     # so you can add other widgets to it and use it as a grid within the parent grid.
-    def add_frame(name, options = {})
+    #
+    # If you provide a block, it will be executed in the scope of the frame.
+    def add_frame(name, options = {}, &block)
       name = name.to_sym
       raise DuplicateNameError if @object.include?(name)
-      @object[name] = new SimpleTk::Window(options.merge(parent: self, stk___frame: true))
+      options = fix_position(options.dup)
+      @object[name] = SimpleTk::Window.new(options.merge(parent: content, stk___frame: true), &block)
     end
 
     ##
@@ -378,9 +386,20 @@ module SimpleTk
       end
     end
 
+    ##
+    # Executes a block with the specified options preset.
+    def with_options(options = {}, &block)
+      return unless block
+      backup_options = @config[:base_opt]
+      @config[:base_opt] = @config[:base_opt].merge(options)
+      begin
+        instance_eval &block
+      ensure
+        @config[:base_opt] = backup_options
+      end
+    end
 
     private
-
 
     def root
       @object[:stk___root]
@@ -390,21 +409,13 @@ module SimpleTk
       @object[:stk___content]
     end
 
-    def add_widget(klass, name, label_text, options = {}, &block)
-      raise ArgumentError, 'name cannot be blank' if name.to_s.strip == ''
-      name = name.to_sym
-      raise DuplicateNameError if @object.include?(name)
-      options = options.dup
-      cmd = get_command options.delete(:command), &block
-      if cmd
-        options[:command] = cmd
-      end
-
-      col = options.delete(:column)
+    def fix_position(options)
+      col = options.delete(:column) || options.delete(:col)
       row = options.delete(:row)
       width = options.delete(:columnspan) || options.delete(:colspan) || options.delete(:columns) || 1
       height = options.delete(:rowspan) || options.delete(:rows) || 1
-      pos = options.delete(:position)
+      pos = options.delete(:position) || options.delete(:pos)
+      skip = options.delete(:skip)
 
       if pos.is_a?(Array)
         col = pos[0] || col
@@ -421,11 +432,22 @@ module SimpleTk
       if @config[:placement] == :free
         raise ArgumentError, ':column must be set for free placement mode' unless col
         raise ArgumentError, ':row must be set for free placement mode' unless row
+        raise ArgumentError, ':skip must not be set for free placement mode' if skip
       elsif @config[:placement] == :flow
         raise ArgumentError, ':column cannot be set for flow placement mode' if col
         raise ArgumentError, ':row cannot be set for flow placement mode' if row
         raise ArgumentError, ":columnspan cannot be more than #{@config[:col_count]} in flow placement mode" if width > @config[:col_count]
         raise ArgumentError, ':rowspan cannot be more than 1 in flow placement mode' if height > 1
+
+        # skip cells if the user requested it.
+        if skip
+          @config[:cur_col] += skip
+          while @config[:cur_col] >= @config[:col_start] + @config[:col_count]
+            @config[:cur_row] += 1
+            @config[:cur_col] -= @config[:col_count]
+          end
+        end
+
         if width > @config[:col_count] - @config[:cur_col] + 1
           @config[:cur_row] += 1
           @config[:cur_col] = @config[:col_start]
@@ -443,6 +465,21 @@ module SimpleTk
       options[:row] = row
       options[:columnspan] = width
       options[:rowspan] = height
+
+      options
+    end
+
+    def add_widget(klass, name, label_text, options = {}, &block)
+      raise ArgumentError, 'name cannot be blank' if name.to_s.strip == ''
+      name = name.to_sym
+      raise DuplicateNameError if @object.include?(name)
+      options = options.dup
+      cmd = get_command options.delete(:command), &block
+      if cmd
+        options[:command] = cmd
+      end
+
+      options = fix_position(options)
 
       if (attrib = options.delete(:create_var))
         @var[name] ||= TkVariable.new
