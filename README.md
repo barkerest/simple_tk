@@ -1,8 +1,20 @@
 # SimpleTk
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/simple_tk`. To experiment with that code, run `bin/console` for an interactive prompt.
+I wanted a really simple GUI library for Ruby.  Not because I think Ruby should be used for GUI
+applications, but because I think it should be able to tbe used for GUI applications.
 
-TODO: Delete this and the text above, and describe your gem
+Really I wanted something to make a quick configuration app using an existing Ruby gem I had 
+written. I started out with a simple console app, but I decided I wanted something even simpler
+for the eventual day when somebody else has to use it.
+
+So I searched.  First I found Shoes.  Which would be acceptable except Shoes 3 does not have a gem
+and Shoes 4 requires JRuby.  Ok moving on, we have several other libraries that interface with other
+libraries.  And then Tk, which is from the Ruby code base.  So time to learn Tk, which turns out has
+a lot of repeated steps and code.  Well that's easy enough to correct.  I wrote a quick wrapper and
+built my config app.
+
+I extracted that wrapper and built it up to support more than just labels, entries, and buttons.
+This gem is the end result of that action.
 
 ## Installation
 
@@ -22,17 +34,12 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+TODO: Add usage instructions.
 
-## Development
-
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/simple_tk.
+Bug reports and pull requests are welcome on GitHub at https://github.com/barkerest/simple_tk.
 
 
 ## License
