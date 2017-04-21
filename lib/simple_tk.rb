@@ -15,8 +15,10 @@ module SimpleTk
   ##
   # Creates a basic alert message box.
   #
-  # message:: The message to display.
-  # icon::    The icon to display (one of :info, :error, :question, or :warning).
+  # message::
+  #     The message to display.
+  # icon::
+  #     The icon to display (one of :info, :error, :question, or :warning).
   #
   # Returns true.
   def self.alert(message, icon = :info)
@@ -27,12 +29,16 @@ module SimpleTk
   ##
   # Creates a basic yes/no message box.
   #
-  # message:: The message to display.
-  # icon::    The icon to display (one of :info, :error, :question, or :warning).
+  # message::
+  #     The message to display.
+  # icon::
+  #     The icon to display (one of :info, :error, :question, or :warning).
+  # ok_cancel::
+  #     Set to true to make the buttons OK and Cancel instead of Yes and No.
   #
-  # Returns true for 'Yes' or false for 'No'.
-  def self.ask(message, icon = :question)
-    Tk::messageBox(message: message, type: 'yesno', icon: icon) == 'yes'
+  # Returns true for 'Yes' (or 'OK') or false for 'No' (or 'Cancel').
+  def self.ask(message, icon = :question, ok_cancel = false)
+    %w(ok yes).include?(Tk::messageBox(message: message, type: ok_cancel ? 'okcancel' : 'yesno', icon: icon))
   end
 
 end

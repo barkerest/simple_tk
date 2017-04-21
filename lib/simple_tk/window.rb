@@ -7,6 +7,28 @@ require 'tk'
 module SimpleTk
   ##
   # A class representing a window that all the other controls get piled into.
+  #
+  # We use the "grid" layout manager.  Each widget gets assigned to the grid
+  # using specific column and row settings.
+  #
+  # To simplify things the Window class allows either "free" mode or "flow"
+  # mode placement.  In "free" mode, you must specify the :column and :row
+  # option for each widget you add.  In "flow" mode, the :column and :row
+  # are computed for you automatically.
+  #
+  # There are multiple ways to give the Window the grid coordinates for the
+  # new widget.
+  #
+  # You can explicitly set the :column, :row, :columnspan, and :rowspan options.
+  # The :col option is equivalent to :column and the :colspan option is equivalent
+  # to the :columnspan option.  The :columnspan and :rowspan options default to
+  # a value of 1 if you do not specify them.
+  #   add_label :xyz, 'XYZ', :column => 1, :row => 2, :columnspan => 1, :rowspan => 1
+  #   add_label :xyz, 'XYZ', :col => 1, :row => 2, :colspan => 1, :rowspan => 1
+  #
+  # You can also set the :position option.  The :pos option is equivalent to the
+  # :position option.  The argument to this option is either an Array or a Hash.
+  # If an Array is specified, it should have either 2 or 4 values.
   class Window
 
     ##
@@ -18,7 +40,7 @@ module SimpleTk
     ##
     # Creates a new window.
     #
-    # Valid options:
+    # Some valid options:
     # title::
     #     The title to put on the window.
     #     Defaults to "My Application".
@@ -36,6 +58,13 @@ module SimpleTk
     #     The stickiness for the content frame.
     #     This defaults to "nsew" and most likely you don't want to change it, but the
     #     option is available.
+    #
+    # Window options can be prefixed with 'window_' or put into a hash under a 'window' option.
+    #   SimpleTk::Window.new(window: { geometry: '300x300' })
+    #   SimpleTk::Window.new(window_geometry: '300x300')
+    #
+    # Any options not listed above or explicitly assigned to the window are applied to the
+    # content frame.
     #
     # If you provide a block it will be executed in the scope of the window.
     def initialize(options = {}, &block)
@@ -80,12 +109,26 @@ module SimpleTk
           col_count: -1,
           cur_col: -1,
           cur_row: -1,
-          base_opt: { }
+          base_opt: { },
+          max_col: 0,
+          max_row: 0
       }
 
       if block_given?
         instance_eval &block
       end
+    end
+
+    ##
+    # Gets the number of columns in use.
+    def column_count
+      @config[:max_col]
+    end
+
+    ##
+    # Gets the number of rows in use.
+    def row_count
+      @config[:max_row]
     end
 
     ##
@@ -121,8 +164,10 @@ module SimpleTk
     ##
     # Binds a method or Proc to a window event.
     #
-    # event::     The event to bind to (eg - "1", "Return", "Shift-2")
-    # proc::      A predefined proc to bind to the event, only used if no block is provided.
+    # event::
+    #     The event to bind to (eg - "1", "Return", "Shift-2")
+    # proc::
+    #     A predefined proc to bind to the event, only used if no block is provided.
     #
     # If a block is provided it will be bound, otherwise the +proc+ argument is looked at.
     # If the proc argument specifies a Proc it will be bound.  If the proc argument is a Symbol
@@ -136,11 +181,14 @@ module SimpleTk
     ##
     # Adds a new label to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # label_text::  The text to put in the label.
-    #               If this is a Symbol, then a variable will be created with this value as its name.
-    #               Otherwise the label will be given the string value as a static label.
-    # options::     Options for the label.  Common options are :column, :row, and :sticky.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # label_text::
+    #     The text to put in the label.
+    #     If this is a Symbol, then a variable will be created with this value as its name.
+    #     Otherwise the label will be given the string value as a static label.
+    # options::
+    #     Options for the label.  Common options are :column, :row, and :sticky.
     def add_label(name, label_text, options = {})
       add_widget Tk::Tile::Label, name, label_text, options
     end
@@ -148,9 +196,12 @@ module SimpleTk
     ##
     # Adds a new image to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # image_path::  The path to the image, can be relative or absolute.
-    # options::     Options for the image.  Common options are :column, :row, and :sticky.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # image_path::
+    #     The path to the image, can be relative or absolute.
+    # options::
+    #     Options for the image.  Common options are :column, :row, and :sticky.
     def add_image(name, image_path, options = {})
       image = TkPhotoImage.new(file: image_path)
       add_widget Tk::Tile::Label, name, nil, options.merge(image: image)
@@ -159,11 +210,14 @@ module SimpleTk
     ##
     # Adds a new button to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # label_text::  The text to put in the button.
-    #               If this is a Symbol, then a variable will be created with this value as its name.
-    #               Otherwise the button will be given the string value as a static label.
-    # options::     Options for the button.  Common options are :column, :row, :sticky, and :command.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # label_text::
+    #     The text to put in the button.
+    #     If this is a Symbol, then a variable will be created with this value as its name.
+    #     Otherwise the button will be given the string value as a static label.
+    # options::
+    #     Options for the button.  Common options are :column, :row, :sticky, and :command.
     #
     # If a block is provided, it will be used for the button command.  Otherwise the :command option
     # will be used.  This can be a Proc or Symbol.  If it is a Symbol it should reference a method in
@@ -179,9 +233,12 @@ module SimpleTk
     ##
     # Adds a new image button to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # image_path::  The path to the image, can be relative or absolute.
-    # options::     Options for the image button.  Common options are :column, :row, :sticky, and :command.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # image_path::
+    #     The path to the image, can be relative or absolute.
+    # options::
+    #     Options for the image button.  Common options are :column, :row, :sticky, and :command.
     #
     # If a block is provided, it will be used for the button command.  Otherwise the :command option
     # will be used.  This can be a Proc or Symbol.  If it is a Symbol it should reference a method in
@@ -198,8 +255,10 @@ module SimpleTk
     ##
     # Adds a new text box to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # options::     Options for the text box.  Common options are :column, :row, :sticky, :width, :value, and :password.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # options::
+    #     Options for the text box.  Common options are :column, :row, :sticky, :width, :value, and :password.
     #
     # Accepts a block or command the same as a button. Unlike the button there is no default proc assigned.
     # The proc, if specified, will be called for each keypress.  It should return 1 (success) or 0 (failure).
@@ -221,11 +280,14 @@ module SimpleTk
     ##
     # Adds a new check box to the window
     #
-    # name::        A unique label for this item, cannot be nil.
-    # label_text::  The text to put in the button.
-    #               If this is a Symbol, then a variable will be created with this value as its name.
-    #               Otherwise the button will be given the string value as a static label.
-    # options:      Options for the check box.  Common options are :column, :row, :sticky, and :value.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # label_text::
+    #     The text to put in the button.
+    #     If this is a Symbol, then a variable will be created with this value as its name.
+    #     Otherwise the button will be given the string value as a static label.
+    # options::
+    #     Options for the check box.  Common options are :column, :row, :sticky, and :value.
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_check_box(name, label_text, options = {}, &block)
@@ -237,9 +299,12 @@ module SimpleTk
     ##
     # Adds a new image check box to the window
     #
-    # name::        A unique label for this item, cannot be nil.
-    # image_path::  The path to the image, can be relative or absolute.
-    # options:      Options for the check box.  Common options are :column, :row, :sticky, and :value.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # image_path::
+    #     The path to the image, can be relative or absolute.
+    # options::
+    #     Options for the check box.  Common options are :column, :row, :sticky, and :value.
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_image_check_box(name, image_path, options = {}, &block)
@@ -252,12 +317,16 @@ module SimpleTk
     ##
     # Adds a new radio button to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # group::       The name of the variable this radio button uses.
-    # label_text::  The text to put in the button.
-    #               If this is a Symbol, then a variable will be created with this value as its name.
-    #               Otherwise the button will be given the string value as a static label.
-    # options:      Options for the check box.  Common options are :column, :row, :sticky, :value, and :selected.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # group::
+    #     The name of the variable this radio button uses.
+    # label_text::
+    #     The text to put in the button.
+    #     If this is a Symbol, then a variable will be created with this value as its name.
+    #     Otherwise the button will be given the string value as a static label.
+    # options::
+    #     Options for the check box.  Common options are :column, :row, :sticky, :value, and :selected.
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_radio_button(name, group, label_text, options = {}, &block)
@@ -277,10 +346,14 @@ module SimpleTk
     ##
     # Adds a new radio button to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # group::       The name of the variable this radio button uses.
-    # image_path::  The path to the image, can be relative or absolute.
-    # options:      Options for the check box.  Common options are :column, :row, :sticky, :value, and :selected.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # group::
+    #     The name of the variable this radio button uses.
+    # image_path::
+    #     The path to the image, can be relative or absolute.
+    # options::
+    #     Options for the check box.  Common options are :column, :row, :sticky, :value, and :selected.
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_image_radio_button(name, group, image_path, options = {}, &block)
@@ -301,8 +374,10 @@ module SimpleTk
     ##
     # Adds a new combo box to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # options:      Options for the check box.  Common options are :column, :row, :sticky, :value, and :values.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # options::
+    #     Options for the check box.  Common options are :column, :row, :sticky, :value, and :values.
     #
     # The :values option will define the items in the combo box, the :value option sets the selected option if set.
     #
@@ -320,8 +395,10 @@ module SimpleTk
     ##
     # Adds a new frame to the window.
     #
-    # name::        A unique label for this item, cannot be nil.
-    # options::     Options for the frame.  Common options are :column, :row, and :padding.
+    # name::
+    #     A unique label for this item, cannot be nil.
+    # options::
+    #     Options for the frame.  Common options are :column, :row, and :padding.
     #
     # A frame can be used as a sub-window.  The returned object has all of the same methods as a Window
     # so you can add other widgets to it and use it as a grid within the parent grid.
@@ -337,19 +414,21 @@ module SimpleTk
     ##
     # Sets the placement mode for this window.
     #
-    # mode::      This can be either :free or :flow.
-    #             The default mode for a new window is :free.
-    #             Frames do not inherit this setting from the parent window.
-    #             In free placement mode, you must provide the :column and :row for every widget.
-    #             In flow placement mode, you must not provide the :column or :row for any widget.
-    #             Flow placement will add each widget to the next column moving to the next row as
-    #             needed.
-    # options::   Options are ignored in free placement mode.
-    #             In flow placement mode, you must provide :first_column, :first_row, and either
-    #             :last_column or :column_count.  If you specify both :last_column and :column_count
-    #             then :last_column will be used.  The :first_column and :first_row must be greater
-    #             than or equal to zero.  The :last_column can be equal to the first column but
-    #             the computed :column_count must be at least 1.
+    # mode::
+    #     This can be either :free or :flow.
+    #     The default mode for a new window is :free.
+    #     Frames do not inherit this setting from the parent window.
+    #     In free placement mode, you must provide the :column and :row for every widget.
+    #     In flow placement mode, you must not provide the :column or :row for any widget.
+    #     Flow placement will add each widget to the next column moving to the next row as
+    #     needed.
+    # options::
+    #     Options are ignored in free placement mode.
+    #     In flow placement mode, you must provide :first_column, :first_row, and either
+    #     :last_column or :column_count.  If you specify both :last_column and :column_count
+    #     then :last_column will be used.  The :first_column and :first_row must be greater
+    #     than or equal to zero.  The :last_column can be equal to the first column but
+    #     the computed :column_count must be at least 1.
     def set_placement_mode(mode, options = {})
       raise ArgumentError, 'mode must be :free or :flow' unless [ :free, :flow ].include?(mode)
       if mode == :flow
@@ -465,6 +544,13 @@ module SimpleTk
       options[:row] = row
       options[:columnspan] = width
       options[:rowspan] = height
+
+      end_col = options[:column] + options[:columnspan] - 1
+      end_row = options[:row] + options[:rowspan] - 1
+
+      # track the columns and rows.
+      @config[:max_col] = end_col if end_col > @config[:max_col]
+      @config[:max_row] = end_row if end_row > @config[:max_row]
 
       options
     end
