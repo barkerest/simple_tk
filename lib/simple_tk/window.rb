@@ -2,6 +2,8 @@ require 'simple_tk/errors'
 require 'simple_tk/get_set_helper'
 require 'simple_tk/widget_helpers'
 
+require 'tk'
+
 module SimpleTk
   ##
   # A class representing a window that all the other controls get piled into.
@@ -49,6 +51,8 @@ module SimpleTk
       parent = options.delete(:parent)
       is_frame = options.delete(:stk___frame)
 
+      win_opt, options = split_window_content_options(options)
+
       @object[:stk___root] =
           if is_frame
             parent
@@ -60,14 +64,23 @@ module SimpleTk
 
       unless is_frame
         root.title title
-        TkGrid.columnconfigure root, 0, 1
-        TkGrid.rowconfigure root, 0, 1
+        TkGrid.columnconfigure root, 0, weight: 1
+        TkGrid.rowconfigure root, 0, weight: 1
       end
 
       @object[:stk___content] = Tk::Tile::Frame.new(root)
+      apply_options root, win_opt unless is_frame
       apply_options content, options
 
-      # TODO: Add column/row management internally.
+      @config = {
+          placement: :free,
+          row_start: -1,
+          col_start: -1,
+          col_count: -1,
+          cur_col: -1,
+          cur_row: -1
+      }
+
     end
 
     ##
@@ -153,6 +166,7 @@ module SimpleTk
     #
     # If no block or proc is provided, a default proc that prints to $stderr is created.
     def add_button(name, label_text, options = {}, &block)
+      options = options.dup
       proc = get_command(options.delete(:command), &block) || ->{ $stderr.puts "Button '#{name}' does nothing when clicked." }
       add_widget Tk::Tile::Button, name, label_text, options, &proc
     end
@@ -170,6 +184,7 @@ module SimpleTk
     #
     # If no block or proc is provided, a default proc that prints to $stderr is created.
     def add_image_button(name, image_path, options = {}, &block)
+      options = options.dup
       image = TkPhotoImage.new(file: image_path)
       proc = get_command(options.delete(:command), &block) || ->{ $stderr.puts "Button '#{name}' does nothing when clicked." }
       add_widget Tk::Tile::Button, name, nil, options.merge(image: image), &proc
@@ -184,6 +199,7 @@ module SimpleTk
     # Accepts a block or command the same as a button. Unlike the button there is no default proc assigned.
     # The proc, if specified, will be called for each keypress.  It should return 1 (success) or 0 (failure).
     def add_text_box(name, options = {}, &block)
+      options = options.dup
       if options.delete(:password)
         options[:show] = '*'
       end
@@ -208,6 +224,7 @@ module SimpleTk
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_check_box(name, label_text, options = {}, &block)
+      options = options.dup
       proc = get_command(options.delete(:command), &block)
       add_widget Tk::Tile::Checkbutton, name, label_text, options.merge(create_var: :variable), &proc
     end
@@ -221,6 +238,7 @@ module SimpleTk
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_image_check_box(name, image_path, options = {}, &block)
+      options = options.dup
       image = TkPhotoImage.new(file: image_path)
       proc = get_command(options.delete(:command), &block)
       add_widget Tk::Tile::Checkbutton, name, nil, options.merge(image: image, create_var: :variable), &proc
@@ -239,6 +257,7 @@ module SimpleTk
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_radio_button(name, group, label_text, options = {}, &block)
       raise ArgumentError, 'group cannot be blank' if group.to_s.strip == ''
+      options = options.dup
       group = group.to_sym
       @var[group] ||= TkVariable.new
       options[:variable] = @var[group]
@@ -261,6 +280,7 @@ module SimpleTk
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_image_radio_button(name, group, image_path, options = {}, &block)
       raise ArgumentError, 'group cannot be blank' if group.to_s.strip == ''
+      options = options.dup
       group = group.to_sym
       @var[group] ||= TkVariable.new
       options[:variable] = @var[group]
@@ -283,6 +303,7 @@ module SimpleTk
     #
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_combo_box(name, options = {}, &block)
+      options = options.dup
       proc = get_command(options.delete(:command), &block)
       item = add_widget TK::Tile::Combobox, name, nil, options.merge(create_var: :textvariable)
       if proc
@@ -305,6 +326,58 @@ module SimpleTk
       @object[name] = new SimpleTk::Window(options.merge(parent: self, stk___frame: true))
     end
 
+    ##
+    # Sets the placement mode for this window.
+    #
+    # mode::      This can be either :free or :flow.
+    #             The default mode for a new window is :free.
+    #             Frames do not inherit this setting from the parent window.
+    #             In free placement mode, you must provide the :column and :row for every widget.
+    #             In flow placement mode, you must not provide the :column or :row for any widget.
+    #             Flow placement will add each widget to the next column moving to the next row as
+    #             needed.
+    # options::   Options are ignored in free placement mode.
+    #             In flow placement mode, you must provide :first_column, :first_row, and either
+    #             :last_column or :column_count.  If you specify both :last_column and :column_count
+    #             then :last_column will be used.  The :first_column and :first_row must be greater
+    #             than or equal to zero.  The :last_column can be equal to the first column but
+    #             the computed :column_count must be at least 1.
+    def set_placement_mode(mode, options = {})
+      raise ArgumentError, 'mode must be :free or :flow' unless [ :free, :flow ].include?(mode)
+      if mode == :flow
+        first_col = options[:first_column]
+        col_count =
+            if (val = options[:last_column])
+              val - first_col + 1
+            elsif (val = options[:column_count])
+              val
+            else
+              nil
+            end
+        first_row = options[:first_row]
+        raise ArgumentError, ':first_column must be provided for flow placement' unless first_col
+        raise ArgumentError, ':first_row must be provided for flow placement' unless first_row
+        raise ArgumentError, ':last_column or :column_count must be provided for flow placement' unless col_count
+        raise ArgumentError, ':first_column must be >= 0' unless first_col >= 0
+        raise ArgumentError, ':first_row must be >= 0' unless first_row >= 0
+        raise ArgumentError, ':column_count must be > 0' unless col_count > 0
+
+        @config[:placement] = :flow
+        @config[:col_start] = first_col
+        @config[:row_start] = first_row
+        @config[:col_count] = col_count
+        @config[:cur_row] = first_row
+        @config[:cur_col] = first_col
+      elsif mode == :free
+        @config[:placement] = :free
+        @config[:col_start] = -1
+        @config[:row_start] = -1
+        @config[:col_count] = -1
+        @config[:cur_col] = -1
+        @config[:cur_row] = -1
+      end
+    end
+
 
     private
 
@@ -321,10 +394,55 @@ module SimpleTk
       raise ArgumentError, 'name cannot be blank' if name.to_s.strip == ''
       name = name.to_sym
       raise DuplicateNameError if @object.include?(name)
+      options = options.dup
       cmd = get_command options.delete(:command), &block
       if cmd
         options[:command] = cmd
       end
+
+      col = options.delete(:column)
+      row = options.delete(:row)
+      width = options.delete(:columnspan) || options.delete(:colspan) || options.delete(:columns) || 1
+      height = options.delete(:rowspan) || options.delete(:rows) || 1
+      pos = options.delete(:position)
+
+      if pos.is_a?(Array)
+        col = pos[0] || col
+        row = pos[1] || row
+        width = pos[2] || width
+        height = pos[3] || height
+      elsif pos.is_a?(Hash)
+        col = pos[:column] || pos[:col] || pos[:x] || col
+        row = pos[:row] || pos[:y] || row
+        width = pos[:width] || pos[:w] || pos[:columnspan] || pos[:colspan] || width
+        height = pos[:height] || pos[:h] || pos[:rowspan] || height
+      end
+
+      if @config[:placement] == :free
+        raise ArgumentError, ':column must be set for free placement mode' unless col
+        raise ArgumentError, ':row must be set for free placement mode' unless row
+      elsif @config[:placement] == :flow
+        raise ArgumentError, ':column cannot be set for flow placement mode' if col
+        raise ArgumentError, ':row cannot be set for flow placement mode' if row
+        raise ArgumentError, ":columnspan cannot be more than #{@config[:col_count]} in flow placement mode" if width > @config[:col_count]
+        raise ArgumentError, ':rowspan cannot be more than 1 in flow placement mode' if height > 1
+        if width > @config[:col_count] - @config[:cur_col] + 1
+          @config[:cur_row] += 1
+          @config[:cur_col] = @config[:col_start]
+        end
+        col = @config[:cur_col]
+        row = @config[:cur_row]
+        @config[:cur_col] += width
+        if @config[:cur_col] >= @config[:col_start] + @config[:col_count]
+          @config[:cur_col] = @config[:col_start]
+          @config[:cur_row] += 1
+        end
+      end
+
+      options[:column] = col
+      options[:row] = row
+      options[:columnspan] = width
+      options[:rowspan] = height
 
       if (attrib = options.delete(:create_var))
         @var[name] ||= TkVariable.new
@@ -380,7 +498,7 @@ module SimpleTk
           object.send key, val
         end
       end
-      object.grid(grid_opt)
+      object.grid(grid_opt) unless grid_opt.empty?
     end
 
     def split_widget_grid_options(options)
@@ -399,6 +517,23 @@ module SimpleTk
       end
 
       [ wopt, gopt ]
+    end
+
+    def split_window_content_options(options)
+      options = options.dup
+      wopt = options.delete(:window) || { }
+      copt = { }
+
+      options.each do |k,v|
+        ks = k.to_s
+        if ks =~ /^window_/
+          wopt[ks[7..-1].to_sym] = v
+        else
+          copt[k] = v
+        end
+      end
+
+      [ wopt, copt ]
     end
 
   end
