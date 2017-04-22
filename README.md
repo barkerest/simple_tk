@@ -34,7 +34,19 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Add usage instructions.
+You can build windows using either a block passed to a window constructor or by calling the methods
+on the created window.
+
+```ruby
+win = SimpleTk::Window.new(title: "My Program", window_geometry: "400x300") do
+  add_label :label1, "Hello World!", :column => 0, :row => 0
+  add_frame(:frame1, :column => 0, :row => 1) do
+    
+  end
+end
+
+
+```
 
 
 ## Contributing

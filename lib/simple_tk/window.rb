@@ -68,8 +68,8 @@ module SimpleTk
     #
     # If you provide a block it will be executed in the scope of the window.
     def initialize(options = {}, &block)
-      @object = {}
-      @var = {}
+      @stkw_object_list = {}
+      @stkw_var_list    = {}
 
       options = {
           title: 'My Application',
@@ -83,7 +83,7 @@ module SimpleTk
 
       win_opt, options = split_window_content_options(options)
 
-      @object[:stk___root] =
+      @stkw_object_list[:stk___root] =
           if is_frame
             parent
           elsif parent
@@ -99,10 +99,10 @@ module SimpleTk
         apply_options root, win_opt
       end
 
-      @object[:stk___content] = Tk::Tile::Frame.new(root)
+      @stkw_object_list[:stk___content] = Tk::Tile::Frame.new(root)
       apply_options content, options
 
-      @config = {
+      @stkw_config = {
           placement: :free,
           row_start: -1,
           col_start: -1,
@@ -122,13 +122,13 @@ module SimpleTk
     ##
     # Gets the number of columns in use.
     def column_count
-      @config[:max_col]
+      @stkw_config[:max_col]
     end
 
     ##
     # Gets the number of rows in use.
     def row_count
-      @config[:max_row]
+      @stkw_config[:max_row]
     end
 
     ##
@@ -152,13 +152,13 @@ module SimpleTk
     ##
     # Gets objects from the window.
     def object
-      @object_helper ||= SimpleTk::GetSetHelper.new( self, :@object, true, nil, ->(i,v) {  } )
+      @object_helper ||= SimpleTk::GetSetHelper.new(self, :@stkw_object_list, true, nil, ->(i,v) {  } )
     end
 
     ##
     # Gets or sets variable values for this window.
     def var
-      @var_helper ||= SimpleTk::GetSetHelper.new(self, :@var, true, :value, :value=)
+      @var_helper ||= SimpleTk::GetSetHelper.new(self, :@stkw_var_list, true, :value, :value=)
     end
 
     ##
@@ -331,13 +331,13 @@ module SimpleTk
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_radio_button(name, group, label_text, options = {}, &block)
       raise ArgumentError, 'group cannot be blank' if group.to_s.strip == ''
-      options = options.dup
-      group = group.to_sym
-      @var[group] ||= TkVariable.new
-      options[:variable] = @var[group]
-      options[:value] ||= name.to_s.strip
+      options               = options.dup
+      group                 = group.to_sym
+      @stkw_var_list[group] ||= TkVariable.new
+      options[:variable]    = @stkw_var_list[group]
+      options[:value]       ||= name.to_s.strip
       if options.delete(:selected)
-        @var[group] = options[:value]
+        @stkw_var_list[group] = options[:value]
       end
       proc = get_command(options.delete(:command), &block)
       add_widget Tk::Tile::Radiobutton, name, label_text, options, &proc
@@ -358,13 +358,13 @@ module SimpleTk
     # Accepts a block or command the same as a button.  Unlike a button there is no default proc assigned.
     def add_image_radio_button(name, group, image_path, options = {}, &block)
       raise ArgumentError, 'group cannot be blank' if group.to_s.strip == ''
-      options = options.dup
-      group = group.to_sym
-      @var[group] ||= TkVariable.new
-      options[:variable] = @var[group]
-      options[:value] ||= name.to_s.strip
+      options               = options.dup
+      group                 = group.to_sym
+      @stkw_var_list[group] ||= TkVariable.new
+      options[:variable]    = @stkw_var_list[group]
+      options[:value]       ||= name.to_s.strip
       if options.delete(:selected)
-        @var[group] = options[:value]
+        @stkw_var_list[group] = options[:value]
       end
       proc = get_command(options.delete(:command), &block)
       image = TkPhotoImage.new(file: image_path)
@@ -406,9 +406,9 @@ module SimpleTk
     # If you provide a block, it will be executed in the scope of the frame.
     def add_frame(name, options = {}, &block)
       name = name.to_sym
-      raise DuplicateNameError if @object.include?(name)
-      options = fix_position(options.dup)
-      @object[name] = SimpleTk::Window.new(options.merge(parent: content, stk___frame: true), &block)
+      raise DuplicateNameError if @stkw_object_list.include?(name)
+      options                 = fix_position(options.dup)
+      @stkw_object_list[name] = SimpleTk::Window.new(options.merge(parent: content, stk___frame: true), &block)
     end
 
     ##
@@ -449,19 +449,23 @@ module SimpleTk
         raise ArgumentError, ':first_row must be >= 0' unless first_row >= 0
         raise ArgumentError, ':column_count must be > 0' unless col_count > 0
 
-        @config[:placement] = :flow
-        @config[:col_start] = first_col
-        @config[:row_start] = first_row
-        @config[:col_count] = col_count
-        @config[:cur_row] = first_row
-        @config[:cur_col] = first_col
+        @stkw_config.merge!(
+            placement: :flow,
+            col_start: first_col,
+            row_start: first_row,
+            col_count: col_count,
+            cur_row:   first_row,
+            cur_col:   first_col
+        )
       elsif mode == :free
-        @config[:placement] = :free
-        @config[:col_start] = -1
-        @config[:row_start] = -1
-        @config[:col_count] = -1
-        @config[:cur_col] = -1
-        @config[:cur_row] = -1
+        @stkw_config.merge!(
+            placement: :free,
+            col_start: -1,
+            row_start: -1,
+            col_count: -1,
+            cur_row: -1,
+            cur_col: -1
+        )
       end
     end
 
@@ -469,23 +473,23 @@ module SimpleTk
     # Executes a block with the specified options preset.
     def with_options(options = {}, &block)
       return unless block
-      backup_options = @config[:base_opt]
-      @config[:base_opt] = @config[:base_opt].merge(options)
+      backup_options          = @stkw_config[:base_opt]
+      @stkw_config[:base_opt] = @stkw_config[:base_opt].merge(options)
       begin
         instance_eval &block
       ensure
-        @config[:base_opt] = backup_options
+        @stkw_config[:base_opt] = backup_options
       end
     end
 
     private
 
     def root
-      @object[:stk___root]
+      @stkw_object_list[:stk___root]
     end
 
     def content
-      @object[:stk___content]
+      @stkw_object_list[:stk___content]
     end
 
     def fix_position(options)
@@ -508,35 +512,35 @@ module SimpleTk
         height = pos[:height] || pos[:h] || pos[:rowspan] || height
       end
 
-      if @config[:placement] == :free
+      if @stkw_config[:placement] == :free
         raise ArgumentError, ':column must be set for free placement mode' unless col
         raise ArgumentError, ':row must be set for free placement mode' unless row
         raise ArgumentError, ':skip must not be set for free placement mode' if skip
-      elsif @config[:placement] == :flow
+      elsif @stkw_config[:placement] == :flow
         raise ArgumentError, ':column cannot be set for flow placement mode' if col
         raise ArgumentError, ':row cannot be set for flow placement mode' if row
-        raise ArgumentError, ":columnspan cannot be more than #{@config[:col_count]} in flow placement mode" if width > @config[:col_count]
+        raise ArgumentError, ":columnspan cannot be more than #{@stkw_config[:col_count]} in flow placement mode" if width > @stkw_config[:col_count]
         raise ArgumentError, ':rowspan cannot be more than 1 in flow placement mode' if height > 1
 
         # skip cells if the user requested it.
         if skip
-          @config[:cur_col] += skip
-          while @config[:cur_col] >= @config[:col_start] + @config[:col_count]
-            @config[:cur_row] += 1
-            @config[:cur_col] -= @config[:col_count]
+          @stkw_config[:cur_col] += skip
+          while @stkw_config[:cur_col] >= @stkw_config[:col_start] + @stkw_config[:col_count]
+            @stkw_config[:cur_row] += 1
+            @stkw_config[:cur_col] -= @stkw_config[:col_count]
           end
         end
 
-        if width > @config[:col_count] - @config[:cur_col] + 1
-          @config[:cur_row] += 1
-          @config[:cur_col] = @config[:col_start]
+        if width > @stkw_config[:col_count] - @stkw_config[:cur_col] + 1
+          @stkw_config[:cur_row] += 1
+          @stkw_config[:cur_col] = @stkw_config[:col_start]
         end
-        col = @config[:cur_col]
-        row = @config[:cur_row]
-        @config[:cur_col] += width
-        if @config[:cur_col] >= @config[:col_start] + @config[:col_count]
-          @config[:cur_col] = @config[:col_start]
-          @config[:cur_row] += 1
+        col                    = @stkw_config[:cur_col]
+        row                    = @stkw_config[:cur_row]
+        @stkw_config[:cur_col] += width
+        if @stkw_config[:cur_col] >= @stkw_config[:col_start] + @stkw_config[:col_count]
+          @stkw_config[:cur_col] = @stkw_config[:col_start]
+          @stkw_config[:cur_row] += 1
         end
       end
 
@@ -545,12 +549,12 @@ module SimpleTk
       options[:columnspan] = width
       options[:rowspan] = height
 
-      end_col = options[:column] + options[:columnspan] - 1
-      end_row = options[:row] + options[:rowspan] - 1
+      end_col                = options[:column] + options[:columnspan] - 1
+      end_row                = options[:row] + options[:rowspan] - 1
 
       # track the columns and rows.
-      @config[:max_col] = end_col if end_col > @config[:max_col]
-      @config[:max_row] = end_row if end_row > @config[:max_row]
+      @stkw_config[:max_col] = end_col if end_col > @stkw_config[:max_col]
+      @stkw_config[:max_row] = end_row if end_row > @stkw_config[:max_row]
 
       options
     end
@@ -558,7 +562,7 @@ module SimpleTk
     def add_widget(klass, name, label_text, options = {}, &block)
       raise ArgumentError, 'name cannot be blank' if name.to_s.strip == ''
       name = name.to_sym
-      raise DuplicateNameError if @object.include?(name)
+      raise DuplicateNameError if @stkw_object_list.include?(name)
       options = options.dup
       cmd = get_command options.delete(:command), &block
       if cmd
@@ -568,25 +572,25 @@ module SimpleTk
       options = fix_position(options)
 
       if (attrib = options.delete(:create_var))
-        @var[name] ||= TkVariable.new
+        @stkw_var_list[name] ||= TkVariable.new
         if attrib.is_a?(Symbol)
-          options[attrib] = @var[name]
+          options[attrib] = @stkw_var_list[name]
         end
         init_val = options.delete(:value)
         var[name] = init_val if init_val
       end
 
-      @object[name] = klass.new(content)
+      @stkw_object_list[name] = klass.new(content)
       if label_text
-        set_text @object[name], label_text
+        set_text @stkw_object_list[name], label_text
       end
-      apply_options @object[name], options
+      apply_options @stkw_object_list[name], options
 
       # add disable, disabled?, and enable methods.
-      @object[name].extend SimpleTk::DisableHelpers
+      @stkw_object_list[name].extend SimpleTk::DisableHelpers
 
       # return the object after creation
-      @object[name]
+      @stkw_object_list[name]
     end
 
     def get_command(proc, &block)
@@ -605,8 +609,8 @@ module SimpleTk
 
     def set_text(object, label_text)
       if label_text.is_a?(Symbol)
-        @var[label_text] ||= TkVariable.new
-        object.textvariable @var[label_text]
+        @stkw_var_list[label_text] ||= TkVariable.new
+        object.textvariable @stkw_var_list[label_text]
       else
         object.text label_text
       end
