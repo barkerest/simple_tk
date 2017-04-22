@@ -26,16 +26,31 @@ module SimpleTk
     #     If this is a Symbol then it defines the method name of the retrieved value to call with the new value.
     #     If this ia a Proc then it will be called with the retrieved value and the new value as arguments.
     #     If this is nil then the hash value is replaced with the new value.
+    # key_filter::
+    #     If set to a proc keys are passed to this proc and only kept if the proc returns a true value.
+    #     Any key rejected by the filter become unavailable via the helper.
     #
     #   GetSetHelper.new(my_obj, :@data)
     #   GetSetHelper.new(my_obj, :@data, true, :value, :value=)
     #   GetSetHelper.new(my_obj, :@data, true, ->(v){ v.value }, ->(i,v){ i.value = v })
-    def initialize(parent, hash_ivar, auto_symbol = true, getter = nil, setter = nil)
+    def initialize(parent, hash_ivar, auto_symbol = true, getter = nil, setter = nil, key_filter = nil)
       @parent = parent
       @hash_ivar = hash_ivar
       @auto_symbol = auto_symbol
       @getter = getter
       @setter = setter
+      @key_filter = key_filter.is_a?(Proc) ? key_filter : nil
+    end
+
+    ##
+    # Gets the available keys.
+    def keys
+      h = @parent.instance_variable_get(@hash_ivar)
+      if @key_filter
+        h.keys.select &@key_filter
+      else
+        h.keys.dup
+      end
     end
 
     ##
@@ -43,7 +58,7 @@ module SimpleTk
     def [](name)
       name = name.to_sym if @auto_symbol
       h = @parent.instance_variable_get(@hash_ivar)
-      if h.include?(name)
+      if keys.include?(name)
         v = h[name]
         if @getter.is_a?(Symbol)
           v.send @getter
@@ -62,7 +77,7 @@ module SimpleTk
     def []=(name, value)
       name = name.to_sym if @auto_symbol
       h = @parent.instance_variable_get(@hash_ivar)
-      if h.include?(name)
+      if keys.include?(name)
         if @setter.is_a?(Symbol)
           h[name].send @setter, value
         elsif @setter.is_a?(Proc)
@@ -72,6 +87,21 @@ module SimpleTk
         end
       else
         raise IndexError
+      end
+    end
+
+    ##
+    # Iterates over the hash.
+    def each
+      h = @parent.instance_variable_get(@hash_ivar)
+      if block_given?
+        keys.each do |k|
+          yield k, h[k]
+        end
+      elsif @key_filter
+        h.dup.keep_if{ |k,v| @key_filter.call(k) }.each
+      else
+        h.each
       end
     end
 

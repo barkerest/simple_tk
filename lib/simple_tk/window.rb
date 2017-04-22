@@ -385,7 +385,7 @@ module SimpleTk
     def add_combo_box(name, options = {}, &block)
       options = options.dup
       proc = get_command(options.delete(:command), &block)
-      item = add_widget TK::Tile::Combobox, name, nil, options.merge(create_var: :textvariable)
+      item = add_widget Tk::Tile::Combobox, name, nil, options.merge(create_var: :textvariable)
       if proc
         item.bind('<ComboboxSelected>') { proc.call }
       end
