@@ -29,6 +29,10 @@ class SimpleTkTest < Minitest::Test
     run_sample 'hello_world'
   end
 
+  def test_readme_sample
+    run_sample 'readme_sample'
+  end
+
   def test_basic_entry
     run_sample 'basic_entry'
   end
